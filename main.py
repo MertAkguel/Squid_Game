@@ -1,6 +1,7 @@
 from gtts import gTTS
 import pygame
 import sys
+import math
 from pygame.locals import *
 import random
 from ultralytics import YOLO
@@ -56,7 +57,12 @@ def toggle_fullscreen():
         is_fullscreen = True
 
 
-def game_flow():
+def game_flow(game_function):
+    """
+    Handles the player setup (number of players, name entry) and runs the selected game function.
+
+    :param game_function: The function corresponding to the selected game (e.g., play_red_light_green_light).
+    """
     # Ask how many players
     screen.fill(BLACK)
     title_text = font.render("How Many Players?", True, WHITE)
@@ -92,9 +98,7 @@ def game_flow():
                 if event.type == KEYDOWN:
                     if event.key == pygame.K_RETURN:
                         if player_name.strip():
-                            print(f"Captured name: {player_name.strip()}")  # Debug: Print entered name
                             players.append(player_name.strip())
-                            print(f"Players list: {players}")  # Debug: Print current player list
                             name_entered = True
                     elif event.key == pygame.K_BACKSPACE:
                         player_name = player_name[:-1]
@@ -105,7 +109,7 @@ def game_flow():
             screen.fill(BLACK)
             title_text = font.render(f"Player {i + 1} Name:", True, WHITE)
             screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, 100))
-            name_text = font.render(player_name, True, GREEN)
+            name_text = font.render(player_name, True, RED)
             screen.blit(name_text, (SCREEN_WIDTH // 2 - name_text.get_width() // 2, 200))
             pygame.display.update()
 
@@ -127,17 +131,19 @@ def game_flow():
                     ready = True
 
         # Start the game for the player
-        score = play_red_light_green_light()  # Update this function to return the player's score
+        score = game_function()  # Update this function to return the player's score
         scores.append((player, score))
 
-        # Save score and check for high score
-        save_to_csv(player, score)
-        if check_high_score(player, score):
-            high_score_text = font.render("New High Score!", True, GREEN)
+        print(f"{check_high_score(player, score, game_function) = }")
+        if check_high_score(player, score, game_function):
+            high_score_text = font.render(f"{player} has a new High Score", True, GREEN)
             screen.blit(high_score_text,
                         (SCREEN_WIDTH // 2 - high_score_text.get_width() // 2, SCREEN_HEIGHT // 2 + 50))
             pygame.display.update()
-            pygame.time.wait(2000)
+            pygame.time.wait(5000)
+
+        # Save score and check for high score
+        save_to_csv(player, score, game_function)
 
     # Determine the winner
     winner = max(scores, key=lambda x: x[1])
@@ -145,16 +151,19 @@ def game_flow():
     winner_text = font.render(f"{winner[0]} Wins with {winner[1]}s!", True, GREEN)
     screen.blit(winner_text, (SCREEN_WIDTH // 2 - winner_text.get_width() // 2, SCREEN_HEIGHT // 2 - 50))
     pygame.display.update()
-    pygame.time.wait(1500)
+    pygame.time.wait(300)
 
     # Back to Main Menu
     main_menu()
 
 
-# Main menu function
 def main_menu():
     global is_fullscreen
     is_fullscreen = True
+
+    # Predefine button rectangles
+    game1_button = pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 50, 200, 100)
+    game2_button = pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 100, 200, 100)
 
     while True:
         for event in pygame.event.get():
@@ -165,13 +174,25 @@ def main_menu():
                 if event.key == pygame.K_SPACE:
                     toggle_fullscreen()
             if event.type == MOUSEBUTTONDOWN:
-                if button_rect.collidepoint(event.pos):
-                    game_flow()
+                if game1_button.collidepoint(event.pos):
+                    game_flow(play_red_light_green_light)  # Start Game 1
+                elif game2_button.collidepoint(event.pos):
+                    game_flow(cookie_game)  # Start Game 2
 
+        # Background and Title
         screen.fill(BLACK)
-        title_text = font.render("Squid Game", True, WHITE)
+        title_text = font.render("Choose a Game", True, WHITE)
         screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, 100))
-        draw_button("START", RED)
+
+        # Draw Buttons
+        pygame.draw.rect(screen, RED, game1_button)
+        game1_text = button_font.render("Game 1", True, WHITE)
+        screen.blit(game1_text, (game1_button.x + 50, game1_button.y + 25))
+
+        pygame.draw.rect(screen, RED, game2_button)
+        game2_text = button_font.render("Game 2", True, WHITE)
+        screen.blit(game2_text, (game2_button.x + 50, game2_button.y + 25))
+
         pygame.display.update()
 
 
@@ -303,13 +324,144 @@ def play_red_light_green_light():
         return elapsed_game_time
 
 
-# Placeholder for Game Two
-def game_two():
+def cookie_game():
+
+    shapes = ["Star", "Triangle"]
+    # shapes = ["Circle", "Triangle", "Star", "Umbrella"]
+    chosen_shape = random.choice(shapes)
+
+    # Shape boundary setup
+    def generate_shape_boundary(shape):
+        if shape == "Circle":
+            return pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 100, 200, 200)
+        elif shape == "Triangle":
+            return [(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 100),
+                    (SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 100),
+                    (SCREEN_WIDTH // 2 + 100, SCREEN_HEIGHT // 2 + 100)]
+        elif shape == "Star":
+            return [
+                (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 100),
+                (SCREEN_WIDTH // 2 + 30, SCREEN_HEIGHT // 2 - 30),
+                (SCREEN_WIDTH // 2 + 100, SCREEN_HEIGHT // 2 - 30),
+                (SCREEN_WIDTH // 2 + 50, SCREEN_HEIGHT // 2 + 30),
+                (SCREEN_WIDTH // 2 + 70, SCREEN_HEIGHT // 2 + 100),
+                (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 60),
+                (SCREEN_WIDTH // 2 - 70, SCREEN_HEIGHT // 2 + 100),
+                (SCREEN_WIDTH // 2 - 50, SCREEN_HEIGHT // 2 + 30),
+                (SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 30),
+                (SCREEN_WIDTH // 2 - 30, SCREEN_HEIGHT // 2 - 30)
+            ]
+        elif shape == "Umbrella":
+            return {
+                "arc": pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 100, 200, 200),
+                "handle": pygame.Rect(SCREEN_WIDTH // 2 - 5, SCREEN_HEIGHT // 2, 10, 100)
+            }
+
+    shape_boundary = generate_shape_boundary(chosen_shape)
+
+    # Initialize variables
+    player_trail = []
+    start_time = pygame.time.get_ticks()
+    time_limit = 60
+    mistakes = 0
+    max_mistakes = 500
+    threshold_distance = 10
+    progress_index = 0
+    game_result = ""
+    drawing = False
+    running = True
+
+    def check_collision(x, y, boundary, threshold):
+        if chosen_shape == "Circle":
+            center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+            radius = 100
+            dist = ((x - center[0]) ** 2 + (y - center[1]) ** 2) ** 0.5
+            return abs(dist - radius) <= threshold
+        elif chosen_shape in ["Triangle", "Star"]:
+            return pygame.draw.polygon(screen, (0, 0, 0), boundary, 0).collidepoint(x, y)
+        elif chosen_shape == "Umbrella":
+            return boundary["arc"].collidepoint(x, y) or boundary["handle"].collidepoint(x, y)
+
+    while running:
+        elapsed_time = (pygame.time.get_ticks() - start_time) // 1000
+        if elapsed_time >= time_limit:
+            running = False
+            game_result = "Time's Up! You Lose."
+            break
+
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == MOUSEBUTTONDOWN:
+                drawing = True
+            elif event.type == MOUSEBUTTONUP:
+                drawing = False
+            elif event.type == MOUSEMOTION and drawing:
+                x, y = event.pos
+                player_trail.append((x, y))
+
+                # Check progress
+                if chosen_shape == "Circle":
+                    center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+                    radius = 100
+                    dist = ((x - center[0]) ** 2 + (y - center[1]) ** 2) ** 0.5
+                    if abs(dist - radius) <= threshold_distance:
+                        progress_index += 1
+                elif chosen_shape in ["Triangle", "Star"]:
+                    if progress_index < len(shape_boundary):
+                        target_point = shape_boundary[progress_index]
+                        if abs(x - target_point[0]) <= threshold_distance and abs(
+                                y - target_point[1]) <= threshold_distance:
+                            progress_index += 1
+
+                        print(f"{progress_index = }")
+                        print(f"{len(shape_boundary) = }")
+
+                # Check for mistakes
+                if not check_collision(x, y, shape_boundary, threshold_distance):
+                    mistakes += 1
+                    if mistakes >= max_mistakes:
+                        running = False
+                        game_result = "Too Many Mistakes! You Lose."
+                        break
+
+        # Check if the player has completed the shape
+        if progress_index >= len(shape_boundary):
+            running = False
+            game_result = "You Successfully Cut the Shape! You Win."
+            break
+
+        # Update the screen
+        screen.fill(BLACK)
+
+        # Draw the shape boundary
+        if chosen_shape == "Circle":
+            pygame.draw.circle(screen, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), 100, 3)
+        elif chosen_shape in ["Triangle", "Star"]:
+            pygame.draw.polygon(screen, RED, shape_boundary, 3)
+        elif chosen_shape == "Umbrella":
+            pygame.draw.arc(screen, RED, shape_boundary["arc"], 0, 3.14, 3)
+            pygame.draw.rect(screen, RED, shape_boundary["handle"], 3)
+
+        # Draw the player's trail
+        if len(player_trail) >= 2:
+            pygame.draw.lines(screen, GREEN, False, player_trail, 2)
+
+        # Timer and mistakes
+        timer_text = font.render(f"Time: {time_limit - elapsed_time}s", True, WHITE)
+        mistakes_text = font.render(f"Mistakes: {mistakes}/{max_mistakes}", True, RED)
+        screen.blit(timer_text, (20, 20))
+        screen.blit(mistakes_text, (20, 60))
+
+        pygame.display.update()
+
     screen.fill(BLACK)
-    action_text = font.render("Game Two Coming Soon...", True, WHITE)
-    screen.blit(action_text, (SCREEN_WIDTH // 2 - action_text.get_width() // 2, SCREEN_HEIGHT // 2 - 50))
+    result_text = font.render(game_result, True, GREEN if "Win" in game_result else RED)
+    screen.blit(result_text, (SCREEN_WIDTH // 2 - result_text.get_width() // 2, SCREEN_HEIGHT // 2 - 50))
     pygame.display.update()
-    pygame.time.wait(2000)
+    pygame.time.wait(3000)
+
     main_menu()
 
 
