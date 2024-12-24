@@ -325,8 +325,7 @@ def play_red_light_green_light():
 
 
 def cookie_game():
-
-    shapes = ["Star", "Triangle"]
+    shapes = ["Circle"]
     # shapes = ["Circle", "Triangle", "Star", "Umbrella"]
     chosen_shape = random.choice(shapes)
 
@@ -371,6 +370,8 @@ def cookie_game():
     drawing = False
     running = True
 
+    circle_angle_covered = set()
+
     def check_collision(x, y, boundary, threshold):
         if chosen_shape == "Circle":
             center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
@@ -401,13 +402,18 @@ def cookie_game():
                 x, y = event.pos
                 player_trail.append((x, y))
 
-                # Check progress
+                # Check circle progress
                 if chosen_shape == "Circle":
                     center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
-                    radius = 100
-                    dist = ((x - center[0]) ** 2 + (y - center[1]) ** 2) ** 0.5
-                    if abs(dist - radius) <= threshold_distance:
-                        progress_index += 1
+                    dx, dy = x - center[0], y - center[1]
+                    angle = int((math.atan2(dy, dx) * 180 / math.pi) % 360)
+                    if check_collision(x, y, shape_boundary, threshold_distance):
+                        circle_angle_covered.add(angle)
+                    if len(circle_angle_covered) >= 350:  # Require 300 unique angles for completion
+                        running = False
+                        game_result = "You Successfully Cut the Circle! You Win."
+                        break
+
                 elif chosen_shape in ["Triangle", "Star"]:
                     if progress_index < len(shape_boundary):
                         target_point = shape_boundary[progress_index]
