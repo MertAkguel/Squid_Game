@@ -325,7 +325,7 @@ def play_red_light_green_light():
 
 
 def cookie_game():
-    shapes = ["Circle"]
+    shapes = ["Umbrella"]
     # shapes = ["Circle", "Triangle", "Star", "Umbrella"]
     chosen_shape = random.choice(shapes)
 
@@ -351,10 +351,20 @@ def cookie_game():
                 (SCREEN_WIDTH // 2 - 30, SCREEN_HEIGHT // 2 - 30)
             ]
         elif shape == "Umbrella":
-            return {
-                "arc": pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 100, 200, 200),
-                "handle": pygame.Rect(SCREEN_WIDTH // 2 - 5, SCREEN_HEIGHT // 2, 10, 100)
-            }
+            # Umbrella components
+            arc = pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 100, 200, 100)
+            handle = [
+                (SCREEN_WIDTH // 2 - 5, SCREEN_HEIGHT // 2),  # Start of handle
+                (SCREEN_WIDTH // 2 - 5, SCREEN_HEIGHT // 2 + 100),
+                (SCREEN_WIDTH // 2 + 5, SCREEN_HEIGHT // 2 + 100),
+                (SCREEN_WIDTH // 2 + 5, SCREEN_HEIGHT // 2)
+            ]
+            spokes = [
+                [(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50), (SCREEN_WIDTH // 2 - 50, SCREEN_HEIGHT // 2)],
+                [(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50), (SCREEN_WIDTH // 2 + 50, SCREEN_HEIGHT // 2)],
+                [(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50), (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)],
+            ]
+            return {"arc": arc, "handle": handle, "spokes": spokes}
 
     shape_boundary = generate_shape_boundary(chosen_shape)
 
@@ -369,10 +379,16 @@ def cookie_game():
     game_result = ""
     drawing = False
     running = True
+    end_time = None
 
     circle_angle_covered = set()
 
+    umbrella_arc_covered = set()  # To track angles covered in the arc
+    handle_progress = 0  # To track handle completion
+
     def check_collision(x, y, boundary, threshold):
+        nonlocal handle_progress  # Declare it as nonlocal to modify inside this function
+
         if chosen_shape == "Circle":
             center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
             radius = 100
@@ -381,7 +397,22 @@ def cookie_game():
         elif chosen_shape in ["Triangle", "Star"]:
             return pygame.draw.polygon(screen, (0, 0, 0), boundary, 0).collidepoint(x, y)
         elif chosen_shape == "Umbrella":
-            return boundary["arc"].collidepoint(x, y) or boundary["handle"].collidepoint(x, y)
+            arc_hit = shape_boundary["arc"].collidepoint(x, y)
+            handle_hit = pygame.draw.polygon(screen, (0, 0, 0), shape_boundary["handle"], 0).collidepoint(x, y)
+            spoke_hit = any(
+                pygame.draw.line(screen, (0, 0, 0), *spoke, 3).collidepoint(x, y) for spoke in shape_boundary["spokes"])
+
+            # Add progress tracking for each part
+            if arc_hit:
+                center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+                dx, dy = x - center[0], y - center[1]
+                angle = int((math.atan2(dy, dx) * 180 / math.pi) % 360)
+                umbrella_arc_covered.add(angle)
+
+            if handle_hit or spoke_hit:
+                handle_progress += 1
+
+            return arc_hit or handle_hit or spoke_hit
 
     while running:
         elapsed_time = (pygame.time.get_ticks() - start_time) // 1000
@@ -421,8 +452,14 @@ def cookie_game():
                                 y - target_point[1]) <= threshold_distance:
                             progress_index += 1
 
-                        print(f"{progress_index = }")
-                        print(f"{len(shape_boundary) = }")
+                elif chosen_shape == "Umbrella":
+                    if check_collision(x, y, shape_boundary, threshold_distance):
+                        if len(umbrella_arc_covered) >= 165 and handle_progress >= 50:
+                            running = False
+                            game_result = "You Successfully Cut the Umbrella! You Win."
+                            break
+                        print(f"{len(umbrella_arc_covered) = }")
+                        print(f"{handle_progress = }")
 
                 # Check for mistakes
                 if not check_collision(x, y, shape_boundary, threshold_distance):
@@ -447,15 +484,21 @@ def cookie_game():
         elif chosen_shape in ["Triangle", "Star"]:
             pygame.draw.polygon(screen, RED, shape_boundary, 3)
         elif chosen_shape == "Umbrella":
-            pygame.draw.arc(screen, RED, shape_boundary["arc"], 0, 3.14, 3)
-            pygame.draw.rect(screen, RED, shape_boundary["handle"], 3)
+            # Draw the arc
+            pygame.draw.arc(screen, RED, shape_boundary["arc"], math.pi, 2 * math.pi, 3)
+            # Draw the handle
+            pygame.draw.polygon(screen, RED, shape_boundary["handle"], 3)
+            # Draw the spokes
+            for spoke in shape_boundary["spokes"]:
+                pygame.draw.line(screen, RED, spoke[0], spoke[1], 3)
 
         # Draw the player's trail
         if len(player_trail) >= 2:
             pygame.draw.lines(screen, GREEN, False, player_trail, 2)
 
         # Timer and mistakes
-        timer_text = font.render(f"Time: {time_limit - elapsed_time}s", True, WHITE)
+        end_time = time_limit - elapsed_time
+        timer_text = font.render(f"Time: {end_time}s", True, WHITE)
         mistakes_text = font.render(f"Mistakes: {mistakes}/{max_mistakes}", True, RED)
         screen.blit(timer_text, (20, 20))
         screen.blit(mistakes_text, (20, 60))
@@ -466,9 +509,9 @@ def cookie_game():
     result_text = font.render(game_result, True, GREEN if "Win" in game_result else RED)
     screen.blit(result_text, (SCREEN_WIDTH // 2 - result_text.get_width() // 2, SCREEN_HEIGHT // 2 - 50))
     pygame.display.update()
-    pygame.time.wait(3000)
+    pygame.time.wait(5000)
 
-    main_menu()
+    return end_time
 
 
 if __name__ == "__main__":
